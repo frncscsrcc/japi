@@ -1,0 +1,19 @@
+{
+	"root": ".",
+
+	"base": "/api/v1",
+
+	"middlewares": {
+		"/user": true,
+		"/admin": "/custom/admin",
+		"/all": ["/user", "/custom/pippo", "/admin"]
+	},
+
+	"paths": [
+		["/admin", 		"/add/one", 		"POST"],
+		["/admin", 		"/add/two", 		"POST"],
+		["/admin", 		"/ciao/two", 		"POST"],
+		["/admin", 		"/a/b/c", 			"DELETE"]
+	]
+
+}
