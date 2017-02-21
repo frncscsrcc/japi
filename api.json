@@ -2,7 +2,7 @@
 	"default": {
 		"root": ".",
 
-		"base": "/api",
+		"base": "/api/v1",
 
 		"ACLs": {
 			"/user": true,
@@ -11,10 +11,10 @@
 		},
 
 		"paths": [
-			["POST",		"/admin", 		"/v1/add/one"],
-			["POST",		"/all", 		"/v1/add/two"],
-			["POST",		"/admin", 		"/v2/ciao/two"],
-			["DELETE",		"/all", 		"/v1/a/b/:c?"]
+			["GET",		"/admin", 		"/add/one"],
+			["POST",		"/all", 		"/add/two"],
+			["POST",		"/admin", 		"/ciao/two"],
+			["DELETE",		"/all", 		"/a/b/:c?"]
 		]
 	},
 	"development": {
