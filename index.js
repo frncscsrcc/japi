@@ -36,83 +36,83 @@ var module = module.exports = function (apiConfigFile, globalObject) {
   apiValidator(config);
 
   // -------------------------------
-  // Load middlewares
+  // Load ACLs
   // -------------------------------
-  let middlewares = {};
-  if(config.middlewares){
+  let ACLs = {};
+  if(config.ACLs){
 
-    // 1) Single middlewares
-    for(middleware in config.middlewares){
+    // 1) Single ACLs
+    for(ACL in config.ACLs){
 
-      if(Array.isArray(config.middlewares[middleware]))
+      if(Array.isArray(config.ACLs[ACL]))
         continue;
 
       // 1.a) Load module Implicit path
-      if(config.middlewares[middleware] === true){
+      if(config.ACLs[ACL] === true){
         try{
-          middlewares[middleware] = require(config.root + '/middlewares/' + middleware);
+          ACLs[ACL] = require(config.root + '/ACLs/' + ACL);
         }catch(err){
-          falatError('Middleware ' + middleware + ' not found (implicit path)');
+          falatError('Middleware ' + ACL + ' not found (implicit path)');
         }
       }
       // 1.b) Load module Explicit path
       else{
         try{
-          middlewares[middleware] = require(config.root + config.middlewares[middleware]);
+          ACLs[ACL] = require(config.root + config.ACLs[ACL]);
         }catch(err){
-          falatError('Middleware ' + middleware + ' not found (explicit path)');
+          falatError('Middleware ' + ACL + ' not found (explicit path)');
         }
       }
 
       // Return generator
       try{
-        middlewares[middleware] = middlewares[middleware](globalObject);
+        ACLs[ACL] = ACLs[ACL](globalObject);
       }catch(err){
-        falatError('Middleware ' + middleware + ' wrong format');
+        falatError('Middleware ' + ACL + ' wrong format');
       }
 
-      // Check middleware is a function
-      if(typeof middlewares[middleware] !== 'function')
-        falatError('Middleware ' + middleware + ' does not return a function');
+      // Check ACL is a function
+      if(typeof ACLs[ACL] !== 'function')
+        falatError('Middleware ' + ACL + ' does not return a function');
 
-      debug('info', 'Loaded single middleware ' + middleware);
+      debug('info', 'Loaded single ACL ' + ACL);
 
     }
 
-    // 2) Composed middlewares (chains)
-    for(middleware in config.middlewares){
+    // 2) Composed ACLs (chains)
+    for(ACL in config.ACLs){
       
-      if(!Array.isArray(config.middlewares[middleware]))
+      if(!Array.isArray(config.ACLs[ACL]))
         continue;
 
-      for(let i = 0; i < config.middlewares[middleware].length; i++){
-        let entry = config.middlewares[middleware][i];
+      for(let i = 0; i < config.ACLs[ACL].length; i++){
+        let entry = config.ACLs[ACL][i];
 
-        // 2.a) Was previusly defined as single middleware
-        if(middlewares[entry]){
-          middlewares[middleware] = middlewares[middleware] || [];
-          middlewares[middleware].push(middlewares[entry]);
+        // 2.a) Was previusly defined as single ACL
+        if(ACLs[entry]){
+          ACLs[ACL] = ACLs[ACL] || [];
+          ACLs[ACL].push(ACLs[entry]);
         }
 
         // 2.b) Is an explicit path (better to avoid!)
         else{
-          let validMiddleware;
+          let validACL;
           try{
-            validMiddleware = require(config.root + entry);
+            validACL = require(config.root + entry);
           }catch(err){
             falatError('Middleware ' + entry + ' not found (explicit path)')
           }
 
-          validMiddleware = validMiddleware(globalObject);
-          if(typeof validMiddleware !== 'function')
+          validACL = validACL(globalObject);
+          if(typeof validACL !== 'function')
             falatError('Middleware ' + entry + ' does not return a function');
 
-          middlewares[middleware] = middlewares[middleware] || [];
-          middlewares[middleware].push(validMiddleware);
+          ACLs[ACL] = ACLs[ACL] || [];
+          ACLs[ACL].push(validACL);
         }
       }
 
-      debug('info', 'Loaded chain  middleware ' + middleware);
+      debug('info', 'Loaded chain  ACL ' + ACL);
 
     }
 
@@ -127,9 +127,10 @@ var module = module.exports = function (apiConfigFile, globalObject) {
   function findModule(path){
     let module;
     if(moduleCache[path])
-      return moduleCache[path];
+      return moduleCache[path](globalObject);
     try{
       module = require(path);
+      moduleCache[path] = module;
     }catch(err){
       if(err.message.indexOf('Cannot find module') >= 0)
         return false;
@@ -160,13 +161,12 @@ var module = module.exports = function (apiConfigFile, globalObject) {
 
 
   for(let p = 0; p < config.paths.length; p++){
-    let [middleware, path, method] = config.paths[p];
+    let [method, middleware, path] = config.paths[p];
     
-    let module;
-    let subPath = "";
-    let route;
     let filePath;
-    let ok = false;
+    let subPath = "";
+    let module;
+    let route;
     // base: "/api/v1", path "/add/one"
 
     // 1) Search in base, complete path ()
@@ -185,8 +185,7 @@ var module = module.exports = function (apiConfigFile, globalObject) {
         route = extractRoute(module, method, subPath);
       }
       if(route){
-        ok = true;
-        debug('info', 'Found ** ' + label + ' ** in ' + filePath);
+        debug('info', 'Found "' + label + '" in ' + filePath);
         break;
       }
 
@@ -195,13 +194,14 @@ var module = module.exports = function (apiConfigFile, globalObject) {
       subPath = '/' + filePath.pop() + subPath;
       filePath = filePath.join('/');
 
-      // If path does not contain any more base, I can not find module/route!
+      // If path does not contain any more the base base, I can not find module/route!
       if(filePath.indexOf(config.root + config.base) < 0){
-        ok = false;
+        debug('warning', 'Cannot find "' + label + '"');
         break;
       }
     }
 
+    
 
   }
 
