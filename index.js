@@ -137,6 +137,21 @@ var module = module.exports = function (koaApp, apiConfigFile, globalObject) {
   let aclRouters = {};
   for(ACL in ACLs){
     aclRouters[ACL] = new Router();
+
+    // Single ACL
+    if(!Array.isArray(ACLs[ACL])){
+      // Just mount middleware
+      aclRouters[ACL].use( ACLs[ACL] );
+    }
+    // ACL chain
+    else{
+      let aclArray = ACLs[ACL];
+      // Apply -in the right order - all the single ACLs
+      for(a = 0; a < aclArray.length; a++){
+        aclRouters[ACL].use( aclArray[a] );
+      }
+    }
+
   }
 
   // -------------------------------
@@ -243,16 +258,4 @@ var module = module.exports = function (koaApp, apiConfigFile, globalObject) {
 
   return;
 }
-
-
-let debug = Debug('DEBUG');
-
-const koaApp = new Koa();
-
-module(koaApp, './api.json', {});
-
-
-debug('info', 'Koa app is ready');
-
-koaApp.listen(8888);
 
