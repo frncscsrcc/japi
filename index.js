@@ -1,5 +1,7 @@
 const Debug = require('debug');
 const fs = require('fs');
+const merge = require('deepmerge');
+
 
 var module = module.exports = function (apiConfigFile, globalObject) {
 
@@ -29,6 +31,15 @@ var module = module.exports = function (apiConfigFile, globalObject) {
   }catch(err){
     falatError('Not possible to read/parse config file.');
   }
+
+  let defaultConfig = config.default || {};
+  let envConfig = config[process.env.NODE_ENV || 'development'] || {};
+  config = merge(defaultConfig, envConfig, {arrayMerge: function concatMerge(destinationArray, sourceArray, options) {
+      return destinationArray.concat(sourceArray);
+    }
+  });
+
+  console.log(config)
 
   // -------------------------------
   // Validate config file
@@ -127,7 +138,7 @@ var module = module.exports = function (apiConfigFile, globalObject) {
   function findModule(path){
     let module;
     if(moduleCache[path])
-      return moduleCache[path](globalObject);
+//      return moduleCache[path](globalObject);
     try{
       module = require(path);
       moduleCache[path] = module;

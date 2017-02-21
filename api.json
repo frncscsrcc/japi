@@ -1,19 +1,28 @@
 {
-	"root": ".",
+	"default": {
+		"root": ".",
 
-	"base": "/api",
+		"base": "/api",
 
-	"ACLs": {
-		"/user": true,
-		"/admin": "/custom/admin",
-		"/all": ["/user", "/custom/pippo", "/admin"]
+		"ACLs": {
+			"/user": true,
+			"/admin": "/custom/admin",
+			"/all": ["/user", "/custom/pippo", "/admin"]
+		},
+
+		"paths": [
+			["POST",		"/admin", 		"/v1/add/one"],
+			["POST",		"/all", 		"/v1/add/two"],
+			["POST",		"/admin", 		"/v2/ciao/two"],
+			["DELETE",		"/all", 		"/v1/a/b/:c?"]
+		]
 	},
+	"development": {
+		"paths": [
+			["PUT",		"/admin", 		"/v1/ciao/one"]
+		]
+	},	
+	"production": {
 
-	"paths": [
-		["POST",		"/admin", 		"/v1/add/one"],
-		["POST",		"/all", 		"/v1/add/two"],
-		["POST",		"/admin", 		"/v2/ciao/two"],
-		["DELETE",		"/all", 		"/v1/a/b/:c?"]
-	]
-
+	}
 }
