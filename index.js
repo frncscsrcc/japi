@@ -6,46 +6,36 @@ const koaBody = require('koa-body');
 const Router = require('koa-router');
 
 
-var module = module.exports = function (koaApp, apiConfigFile, globalObject) {
+let basicConfig = {
+  root: '../..',
+  base: '/api',
+  folderACLs: "/api/ACLs",
+  ACLs: {},
+  controllers: [],
+}
 
-  globalObject = globalObject || {}
-	let debug = Debug(globalObject.nameSpace ? globalObject.nameSpace : 'japi');
-  let verbose = Debug(globalObject.nameSpace ? 'verbose:' + globalObject.nameSpace : 'verbose:japi');
+module.exports = function (koaApp, apiConfig, globalObject) {
 
   function falatError(error){
     debug('fatal', error);
     throw new Error(error);
   }
-  
-  function apiValidator(apiConfig){
-    if(!apiConfig.root)
-      falatError('Missing root');
-    if(!apiConfig.base)
-      falatError('Missing base');
-  };
 
-  
-  // -------------------------------
-  // Read config file
-  // -------------------------------
-  let config;
-  try{
-    config = require(apiConfigFile);
-  }catch(err){
-    falatError('Not possible to read/parse config file.');
+  let concatMerge = function(destinationArray, sourceArray, options) {
+    return destinationArray.concat(sourceArray);
   }
 
-  let defaultConfig = config.default || {};
-  let envConfig = config[process.env.NODE_ENV || 'development'] || {};
-  config = merge(defaultConfig, envConfig, {arrayMerge: function concatMerge(destinationArray, sourceArray, options) {
-      return destinationArray.concat(sourceArray);
-    }
-  });
+  globalObject = globalObject || {}
+	let debug = Debug(globalObject.nameSpace ? globalObject.nameSpace : 'japi');
+  let verbose = Debug(globalObject.nameSpace ? 'verbose:' + globalObject.nameSpace : 'verbose:japi');
 
-  // -------------------------------
-  // Validate config file
-  // -------------------------------
-  apiValidator(config);
+  apiConfig = apiConfig || {};
+  let defaultConfig = apiConfig.default || {};
+  let envConfig = apiConfig[process.env.NODE_ENV || 'development'] || {};
+  config = merge(basicConfig, defaultConfig, {arrayMerge: concatMerge});
+  config = merge(config, envConfig, {arrayMerge: concatMerge});
+
+  console.log(config)
 
   // -------------------------------
   // Load ACLs
@@ -62,9 +52,9 @@ var module = module.exports = function (koaApp, apiConfigFile, globalObject) {
       // 1.a) Load module Implicit path
       if(config.ACLs[ACL] === true){
         try{
-          ACLs[ACL] = require(config.root + '/ACLs/' + ACL);
+          ACLs[ACL] = require(config.root + config.folderACLs + ACL);
         }catch(err){
-          falatError('Middleware ' + ACL + ' not found (implicit path)');
+          falatError('Middleware ' + ACL + ' not found in ' + config.root + config.folderACLs);
         }
       }
       // 1.b) Load module Explicit path
@@ -72,7 +62,7 @@ var module = module.exports = function (koaApp, apiConfigFile, globalObject) {
         try{
           ACLs[ACL] = require(config.root + config.ACLs[ACL]);
         }catch(err){
-          falatError('Middleware ' + ACL + ' not found (explicit path)');
+          falatError('Middleware ' + ACL + ' not found in ' + config.root + config.ACLs[ACL]);
         }
       }
 
@@ -112,7 +102,7 @@ var module = module.exports = function (koaApp, apiConfigFile, globalObject) {
           try{
             validACL = require(config.root + entry);
           }catch(err){
-            falatError('Middleware ' + entry + ' not found (explicit path)')
+            falatError('Middleware ' + entry + ' not found in ' + config.root + entry)
           }
 
           validACL = validACL(globalObject);
@@ -129,6 +119,11 @@ var module = module.exports = function (koaApp, apiConfigFile, globalObject) {
     }
 
   }
+
+  // -------------------------------
+  // Add an empty ACL
+  // -------------------------------
+  ACLs.__NoACL__ = function * (next){;yield next};
 
   // -------------------------------
   // Create ACL routers
@@ -158,15 +153,10 @@ var module = module.exports = function (koaApp, apiConfigFile, globalObject) {
   // Load controllers
   // -------------------------------
 
-  let moduleCache = {};
-
   function findModule(path){
     let module;
-//    if(moduleCache[path])
-//      return moduleCache[path](globalObject);
     try{
       module = require(path);
-      moduleCache[path] = module;
     }catch(err){
       if(err.message.indexOf('Cannot find module') >= 0)
         return false;
@@ -184,27 +174,45 @@ var module = module.exports = function (koaApp, apiConfigFile, globalObject) {
 
   }
 
-  function extractController(module, method, subPath){
-    let label = method;
-    if(subPath)
-      label += ':' + subPath;
-    if(module[label] && typeof module[label] === 'function'){
-      //console.log('Found method ' + label);
-      return module[label];
+  function pickGenerator(module, method, subPath){
+    
+    for(label in module){
+      let [myMethod, mySubPath] = label.split(/[\s,]+/);
+      if(myMethod.toLowerCase() == method.toLowerCase() &&
+        mySubPath === subPath && typeof module[label] === 'function'){
+          return module[label];
+      }
     }
+
     return false;
   }
 
 
-  for(let p = 0; p < config.paths.length; p++){
+  for(let c = 0; c < config.controllers.length; c++){
 
-    let [method, ACL, path] = config.paths[p];
+    let parsedControlled = config.controllers[c].trim().split(/\s+/);
     
+    let ACL, method, path;
+
+    if(parsedControlled.length === 3){
+      ACL = parsedControlled[0];
+      method = parsedControlled[1];
+      path = parsedControlled[2];
+    }
+    else if(parsedControlled.length === 2){
+      ACL = '__NoACL__';
+      method = parsedControlled[0];
+      path = parsedControlled[1];
+    }
+
+    if(!ACL){
+      ACL = '__NoACL__';
+    }
+
     let filePath;
     let subPath = "";
     let module;
     let controller;
-    // base: "/api/v1", path "/add/one"
 
     // Find the controller search in base, complete path ()
     filePath = config.root + config.base + path;
@@ -212,17 +220,15 @@ var module = module.exports = function (koaApp, apiConfigFile, globalObject) {
       
       let label = method;
       if(subPath)
-        label += ':' + subPath;
+        label += ' ' + subPath;
       verbose('info', 'Searching ' + label + ' in ' + filePath);
 
-      //console.log('Search ' + filePath)
       module = findModule(filePath);
       if(module){
-        //console.log('Search route' + filePath + " " + method + ":" + subPath);
-        controller = extractController(module, method, subPath);
+        controller = pickGenerator(module, method, subPath);
       }
       if(controller){
-        debug('info', 'Found "' + label + '" in ' + filePath);
+        debug('info', 'Found ' + label + ' in ' + filePath);
         break;
       }
 
@@ -240,22 +246,27 @@ var module = module.exports = function (koaApp, apiConfigFile, globalObject) {
 
     // Mount route on aclRouters
     if(controller){
-      // eg: aclRouters['/admin'].get('/roles/get/:id, controller);
       aclRouters[ACL][method.toLowerCase()](path, koaBody(), (function(){ return controller;}() ));
     }
 
   }
 
+  // Mount ACL to main router
   const mainRouter = new Router();
   for(let ACL in ACLs){
-    mainRouter.use(ACL, aclRouters[ACL].middleware());
+    if(ACL === '__NoACL__')
+      mainRouter.use(aclRouters[ACL].middleware());
+    else
+      mainRouter.use(ACL, aclRouters[ACL].middleware());
   }
 
+
+  // Mount main router to Api router
   const api = new Router();
   api.use(config.base, mainRouter.routes());
 
+  // Mount Api router to koa application
   koaApp.use(api.routes());
 
-  return;
 }
 
