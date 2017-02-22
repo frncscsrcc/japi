@@ -168,7 +168,6 @@ module.exports = function (koaApp, apiConfig, globalObject) {
 
     try {
       module = module(globalObject);
-      //console.log("Found module for " + path)
       return module;
     } catch (err) {
       return false;
@@ -264,13 +263,52 @@ module.exports = function (koaApp, apiConfig, globalObject) {
       mainRouter.use(ACL, aclRouters[ACL].middleware());
   }
 
-
   // Mount main router to Api router
   const api = new Router();
+  api.use(config.base, function *(next){
+    verbose('debug', '<== ' + this.url);
+    yield next;
+  });
+
+  // Intercept any error
+  api.use(config.base, function *(next) {
+    try{
+      return yield next;
+    }
+    catch(error){
+      debug('error', error.stack);
+      this.code = 500;
+      return this.body = {
+        status: 'ko',
+        error: process.env.NODE_ENV !== 'production' ? error.stack : error.message
+      };
+    }
+  });
+
   api.use(config.base, mainRouter.routes());
 
   // Mount Api router to koa application
   koaApp.use(api.routes());
+
+  // Intercept 404 (just on the base path)
+  koaApp.use(function *(next){
+    let regex = new RegExp('^' + config.base + '/');
+    if(regex.test(this.url) && this.body === undefined){
+      verbose('debug', '<== ' + this.url);
+      verbose('error', this.url + ' not found');
+
+      this.code = 404;
+      this.body = {
+        status: 'ko',
+        error: 'Page ' + this.url + ' not found'
+      }
+    }
+    else{
+      yield next;
+    }
+
+  });
+
 
 };
 
