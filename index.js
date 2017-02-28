@@ -17,9 +17,9 @@ let basicConfig = {
 
 module.exports = function (koaApp, apiConfig, globalObject) {
 
-  function fatalError (error) {
-    debug('fatal', error);
-    throw new Error(error);
+  function fatalError (text, error) {
+    debug('fatal', text);
+    throw new Error(error || text);
   }
 
   let concatMerge = function (destinationArray, sourceArray) {
@@ -29,6 +29,8 @@ module.exports = function (koaApp, apiConfig, globalObject) {
   globalObject = globalObject || {};
   let debug = Debug(globalObject.nameSpace ? globalObject.nameSpace : 'japi');
   let verbose = Debug(globalObject.nameSpace ? 'verbose:' + globalObject.nameSpace : 'verbose:japi');
+  globalObject.debug = debug;
+  globalObject.verbose = verbose;
 
   apiConfig = apiConfig || {};
   let defaultConfig = apiConfig.default || {};
@@ -54,7 +56,7 @@ module.exports = function (koaApp, apiConfig, globalObject) {
         try {
           ACLs[ACL] = require(config.root + config.folderACLs + ACL);
         } catch (err) {
-          fatalError('Middleware ' + ACL + ' not found in ' + config.root + config.folderACLs);
+          fatalError('Middleware ' + ACL + ' not found in ' + config.root + config.folderACLs, err);
         }
       }
       // 1.b) Load module Explicit path
@@ -62,7 +64,7 @@ module.exports = function (koaApp, apiConfig, globalObject) {
         try {
           ACLs[ACL] = require(config.root + config.ACLs[ACL]);
         } catch (err) {
-          fatalError('Middleware ' + ACL + ' not found in ' + config.root + config.ACLs[ACL]);
+          fatalError('Middleware ' + ACL + ' not found in ' + config.root + config.ACLs[ACL], err);
         }
       }
 
@@ -176,7 +178,6 @@ module.exports = function (koaApp, apiConfig, globalObject) {
   }
 
   function pickGenerator (module, method, subPath) {
-
     for (let label in module) {
       let [myMethod, mySubPath] = label.split(/[\s,]+/);
       if (myMethod.toLowerCase() == method.toLowerCase() &&
@@ -188,16 +189,36 @@ module.exports = function (koaApp, apiConfig, globalObject) {
     return false;
   }
 
+  // jsonp handler
+  function jsonp_handler(){
+    return function *(next){
+      if(this.request.query && this.body){
+        let callback = this.request.query.cb || this.request.query.callback || null;
+        if(callback){
+          this.body = callback + '(' + JSON.stringify(this.body) + ');';
+          this.type = "application/javascript";
+          return;
+        }
+      }
+      yield next;
+    };
+  }
 
-  for (let c = 0; c < config.controllers.length; c++) {
 
-    let parsedControlled = config.controllers[c].trim().split(/\s+/);
+  for(let key in config.controllers) {
+
+    if(!config.controllers[key]){
+      verbose('info', 'Skip controller ' + key);
+      continue;
+    }
+
+    let parsedControlled = key.trim().split(/\s+/);
 
     let ACL, method, path;
 
     if (parsedControlled.length === 3) {
-      ACL = parsedControlled[0];
-      method = parsedControlled[1];
+      method = parsedControlled[0];
+      ACL = parsedControlled[1];
       path = parsedControlled[2];
     }
     else if (parsedControlled.length === 2) {
@@ -246,10 +267,11 @@ module.exports = function (koaApp, apiConfig, globalObject) {
     }
 
     // Mount route on aclRouters
+    // It adds body parser and jsonp handler
     if (controller) {
       aclRouters[ACL][method.toLowerCase()](path, koaBody(), (function () {
         return controller;
-      }() ));
+      }() ), jsonp_handler());
     }
 
   }
@@ -277,7 +299,7 @@ module.exports = function (koaApp, apiConfig, globalObject) {
     }
     catch(error){
       debug('error', error.stack);
-      this.code = 500;
+      this.status = error.status || 500;
       return this.body = {
         status: 'ko',
         error: process.env.NODE_ENV !== 'production' ? error.stack : error.message

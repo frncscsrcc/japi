@@ -103,12 +103,12 @@ var config = {
   		// ---------------------------------------
   		// CONTROLLERS
   		// ---------------------------------------
-  		controllers: [
-  			'POST /acl1 /roles/add',
-  			'DELETE /acl2 /roles/delete',
-  			'PUT /acl3 /roles/update',
-  			'GET /roles/delete', // No ACL involved
-  		]
+  		controllers: {
+  			'POST /acl1 /roles/add': true,
+  			'DELETE /acl2 /roles/delete': true,
+  			'PUT /acl3 /roles/update': false,  // Not enabled in this ENV
+  			'GET /roles/delete': true // No ACL involved
+  		}
 	}
 }
 ```
