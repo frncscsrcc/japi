@@ -312,6 +312,12 @@ module.exports = function (koaApp, apiConfig, globalObject) {
   // Mount Api router to koa application
   koaApp.use(api.routes());
 
+  // Return if there is a body
+  koaApp.use(function *(next){
+    if(this.body)
+      return;
+  });
+
   // Intercept 404 (just on the base path)
   koaApp.use(function *(next){
     let regex = new RegExp('^' + config.base + '/');
