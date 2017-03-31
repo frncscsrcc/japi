@@ -31,6 +31,7 @@ module.exports = function (koaApp, apiConfig, globalObject) {
   let verbose = Debug(globalObject.nameSpace ? 'verbose:' + globalObject.nameSpace : 'verbose:japi');
   globalObject.debug = debug;
   globalObject.verbose = verbose;
+  globalObject.koaBodyOptions = globalObject.koaBodyOptions || {};
 
   apiConfig = apiConfig || {};
   let defaultConfig = apiConfig.default || {};
@@ -172,6 +173,7 @@ module.exports = function (koaApp, apiConfig, globalObject) {
       module = module(globalObject);
       return module;
     } catch (err) {
+      console.log(err)
       return false;
     }
 
@@ -269,7 +271,7 @@ module.exports = function (koaApp, apiConfig, globalObject) {
     // Mount route on aclRouters
     // It adds body parser and jsonp handler
     if (controller) {
-      aclRouters[ACL][method.toLowerCase()](path, koaBody(), (function () {
+      aclRouters[ACL][method.toLowerCase()](path, koaBody(globalObject.koaBodyOptions), (function () {
         return controller;
       }() ), jsonp_handler());
     }
