@@ -318,6 +318,8 @@ module.exports = function (koaApp, apiConfig, globalObject) {
   koaApp.use(function *(next){
     if(this.body)
       return;
+    else
+      yield next;
   });
 
   // Intercept 404 (just on the base path)
