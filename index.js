@@ -329,11 +329,8 @@ module.exports = function (koaApp, apiConfig, globalObject) {
       verbose('debug', '<== ' + this.url);
       verbose('error', this.url + ' not found');
 
-      this.code = 404;
-      this.body = {
-        status: 'ko',
-        error: 'Page ' + this.url + ' not found'
-      }
+      this.throw(404, 'Page ' + this.url + ' not found');
+
     }
     else{
       yield next;
